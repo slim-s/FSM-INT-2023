@@ -1,64 +1,104 @@
-from dash import Dash, html, dcc, callback, Output, Input
-import plotly.express as px
+import dash
+from dash import dcc, html, Input, Output, State
+from dash.exceptions import PreventUpdate
 import pandas as pd
-import io
+import os
+import base64
+import io  # Correct import for BytesIO
 
-app = Dash(__name__)
+app = dash.Dash(__name__)
 
 app.layout = html.Div([
-    html.H1(children='Dashboard', style={'textAlign': 'center'}),
-    dcc.Dropdown(id='dropdown-selection'),
-    dcc.Graph(id='graph-content'),
+    html.H1("Upload Excel Files", style={'textAlign': 'center'}),
     dcc.Upload(
         id='upload-data',
-        children=html.Button('Upload Excel File')
+        children=html.Button('Click here to Vibration data files'),
+        style={
+            'width': '50%',
+            'height': '100px',
+            'lineHeight': '100px',
+            'borderWidth': '1px',
+            'borderStyle': 'dashed',
+            'borderRadius': '5px',
+            'textAlign': 'center',
+            'margin': 'auto'
+        },
+        multiple=True  # Allow multiple files to be uploaded
     ),
+    dcc.Upload(
+        id='upload-exp',
+        children=html.Button('Click here to Upload experiment data File'),
+        style={
+            'width': '50%',
+            'height': '100px',
+            'lineHeight': '100px',
+            'borderWidth': '1px',
+            'borderStyle': 'dashed',
+            'borderRadius': '5px',
+            'textAlign': 'center',
+            'margin': 'auto'
+        }
+    ),
+    html.Div(id='output-data')
 ])
 
 
 @app.callback(
-    Output('dropdown-selection', 'options'),
-    Output('graph-content', 'figure'),
-    [Input('upload-data', 'contents'),
-     Input('upload-data', 'filename')]
+    Output('output-data', 'children'),
+    Input('upload-data', 'contents'),
+    State('upload-data', 'filename')
 )
-def update_options_and_graph(contents, filename):
-    if contents is not None:
-        content_type, content_string = contents.split(',')
-        decoded = base64.b64decode(content_string)
-        try:
-            if 'csv' in filename:
-                # Read the file using pandas
-                df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
-            elif 'xls' in filename:
-                # Read the file using pandas
-                df = pd.read_excel(io.BytesIO(decoded))
-            else:
-                return [], "Unsupported file format"
-        except Exception as e:
-            print(e)
-            return [], "Error processing file"
+def update_output(contents_list, filename_list):
+    if contents_list is None or len(contents_list) == 0:
+        raise PreventUpdate
 
-        # Update dropdown options with column names from the uploaded file
-        options = [{'label': col, 'value': col} for col in df.columns]
+    all_dfs = []  # To store all the DataFrames from the uploaded files
 
-        # Select the first column as the default option in the dropdown
-        selected_value = df.columns[0]
+    for content, filename in zip(contents_list, filename_list):
+        if content is not None:
+            content_type, content_string = content.split(',')
+            try:
+                if 'csv' in filename:
+                    # Read the file using pandas
+                    df = pd.read_csv(io.StringIO(base64.b64decode(content_string).decode('utf-8')))
+                elif 'xls' in filename or 'xlsx' in filename:
+                    # Read the file using pandas
+                    df = pd.read_excel(io.BytesIO(base64.b64decode(content_string)))
+                else:
+                    return "Unsupported file format"
+            except Exception as e:
+                print(e)
+                return "Error processing file"
 
-        # Your plotly graph update code here using 'df' and 'selected_value'
-        fig = px.line(df, x=selected_value, y='pop')
+            # Process the DataFrame (if needed)
+            df = df.dropna(axis='columns', how='all')
+            df = df.dropna(axis='rows', how='all')
+            df.columns = ['Time', 'X', 'Y', 'Z']
+            df = df.iloc[1:]
+            df['Time'] = pd.to_datetime(df['Time'], unit='s').dt.time
 
-        return options, fig
+            # Your additional DataFrame processing code here
+            # ...
 
-    else:
-        # Fallback options and graph when no file is uploaded
-        df = pd.read_csv('https://raw.githubusercontent.com/plotly/datasets/master/gapminder_unfiltered.csv')
-        options = [{'label': col, 'value': col} for col in df.columns]
-        selected_value = df.columns[0]
-        fig = px.line(df, x=selected_value, y='pop')
+            all_dfs.append(df)
 
-        return options, fig
 
+'''
+    # Now you have all the DataFrames in the `all_dfs` list
+    # You can store them in the `dataframes` list or process them further
+
+    # For example, you can print the first few rows of each DataFrame:
+
+
+    output_children = []
+    for idx, df in enumerate(all_dfs):
+        output_children.append(html.Div([
+            html.H3(f"Uploaded File ({idx + 1}): {filename_list[idx]}"),
+            html.P(df.head().to_html())
+        ]))
+
+    return output_children
+'''
 
 if __name__ == '__main__':
     app.run_server(debug=True)

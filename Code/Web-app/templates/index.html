@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ML Dashboard</title>
+</head>
+<body>
+    <h1>Upload Experiment Data</h1>
+    <form method="POST" action="/upload_experiment" enctype="multipart/form-data">
+        <input type="file" name="experiment_file">
+        <input type="submit" value="Upload">
+    </form>
+
+    <h1>Upload Vibration Data</h1>
+    <form method="POST" action="/upload_vibration" enctype="multipart/form-data">
+        <input type="file" name="vibration_files" multiple>
+        <input type="submit" value="Upload">
+    </form>
+
+    {% if predictions %}
+    <h2>Predictions</h2>
+    {{ predictions.to_html(classes="table table-striped") | safe }}
+    {% endif %}
+</body>
+</html>

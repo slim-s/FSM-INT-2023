@@ -1,94 +1,62 @@
+# app.py
 import os
+from flask import Flask, render_template, request
+
 import pandas as pd
 import numpy as np
-from flask import Flask, render_template, request, redirect, url_for, send_file
+import tensorflow as tf
 from tensorflow.keras.models import load_model
-from sklearn.preprocessing import MinMaxScaler
 
 app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['ALLOWED_EXTENSIONS'] = {'xlsx'}
 
-# Load the ML model
+# Load the saved CNN model
 model = load_model('cnn.h5')
 
-# Store the uploaded experiment and vibration files
-experiment_df = None
-vibration_dataframes = []
+# Helper function to check if the file has a valid extension
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
-
+# Route for the index page
 @app.route('/')
 def index():
-    return render_template('index.html', predictions=None)
+    return render_template('index.html')
 
-
+# Route for uploading the experiment data file
 @app.route('/upload_experiment', methods=['POST'])
 def upload_experiment():
-    global experiment_df
-    experiment_file = request.files['experiment_file']
-    if experiment_file:
-        # Process the experiment data
-        experiment_df = pd.read_excel(experiment_file)
-        return redirect(url_for('index'))
+    if 'experiment_file' not in request.files:
+        return "No file part"
+    file = request.files['experiment_file']
+    if file.filename == '':
+        return "No selected file"
+    if file and allowed_file(file.filename):
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], file.filename))
+        # Process the experiment file (add your processing logic here)
+        return "Experiment data uploaded successfully"
 
-
+# Route for uploading the vibration data files
 @app.route('/upload_vibration', methods=['POST'])
 def upload_vibration():
-    global vibration_dataframes
-    vibration_files = request.files.getlist('vibration_files')
-    if vibration_files:
-        for file in vibration_files:
-            # Process the vibration data
-            df = pd.read_excel(file)
-            df = df.dropna(axis='columns', how='all')
-            df = df.dropna(axis='rows', how='all')
-            df.columns = ['Time', 'X', 'Y', 'Z']
-            df = df.iloc[1:]
-            df['Time'] = pd.to_datetime(df['Time'], unit='s').dt.time
-            df['X'] = pd.to_numeric(df['X'], errors='coerce')
-            df['Y'] = pd.to_numeric(df['Y'], errors='coerce')
-            df['Z'] = pd.to_numeric(df['Z'], errors='coerce')
-            df['Magnitude'] = np.sqrt(df['X']**2 + df['Y']**2 + df['Z']**2)
+    files = request.files.getlist('vibration_files')
+    for file in files:
+        if file and allowed_file(file.filename):
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], file.filename))
+            # Process the vibration file (add your processing logic here)
+    return "Vibration data uploaded successfully"
 
-            # Add experiment details from experiment_df based on experiment number
-            experiment_number = int(df['Experiment'].iloc[0])  # Assuming 'Experiment' is a column in df
-            if experiment_df is not None:
-                experiment_row = experiment_df[experiment_df['Experiment'] == experiment_number]
-                if not experiment_row.empty:
-                    for column in experiment_row.columns[1:]:
-                        df[column] = experiment_row[column].values[0]
-
-            vibration_dataframes.append(df)
-            print(f"Processed: {file.filename}")
-
-        return redirect(url_for('index'))
-
-
-@app.route('/predict', methods=['GET'])
+# Route for predictions
+@app.route('/predict', methods=['POST'])
 def predict():
-    global vibration_dataframes
-    if not vibration_dataframes:
-        return redirect(url_for('index'))
-
-    # Concatenate all vibration dataframes into merged_df
-    merged_df = pd.concat(vibration_dataframes, ignore_index=True)
-    merged_df['Time'] = [(t.hour * 3600 + t.minute * 60 + t.second + t.microsecond / 1e6) for t in merged_df['Time']]
-
-    # Prepare the data for prediction
-    scaler = MinMaxScaler()
-    X_test_scaled = scaler.fit_transform(merged_df.drop(['Time', 'Magnitude'], axis=1))
-
+    # Load the data from the uploaded files (add your loading logic here)
+    data = pd.read_excel(os.path.join(app.config['UPLOAD_FOLDER'], 'your_file_name.xlsx'))
+    # Preprocess the data (add your preprocessing logic here)
+    X = data.values  # Assuming X is your input data
     # Make predictions using the loaded model
-    predictions = model.predict(np.expand_dims(X_test_scaled, axis=-1))
-    merged_df['Predictions'] = predictions
-
-    # Save the predictions to an Excel file
-    predictions_file = 'predictions.xlsx'
-    merged_df.to_excel(predictions_file, index=False)
-
-    # Clear vibration_dataframes for next prediction
-    vibration_dataframes = []
-
-    return send_file(predictions_file, as_attachment=True)
-
+    predictions = model.predict(np.expand_dims(X, axis=-1))
+    # Return the predictions as JSON (customize the response as needed)
+    return {'predictions': predictions.tolist()}
 
 if __name__ == '__main__':
     app.run(debug=True)

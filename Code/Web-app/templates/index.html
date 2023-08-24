@@ -1,22 +1,18 @@
-<!-- index.html -->
 <!DOCTYPE html>
 <html>
 <head>
-    <title>ML Dashboard</title>
+    <title>CNN Prediction App</title>
 </head>
 <body>
-    <h1>Welcome to ML Dashboard</h1>
-    <form action="/upload_experiment" method="post" enctype="multipart/form-data">
-        <input type="file" name="experiment_file" accept=".xlsx">
-        <button type="submit">Upload Experiment Data</button>
+    <h1>Enter Data</h1>
+    <form method="post">
+        <label for="Rpm">RPM:</label>
+        <input type="number" step=any id="Rpm" name="Rpm" required><br>
+        <label for="Feed">Feed Rate:</label>
+        <input type="number" step=any id="Feed" name="Feed" required><br>
+        <label for="Depth">Depth of Cut:</label>
+        <input type="number" step=any id="Depth" name="Depth" required><br>
+        <input type="submit" value="Predict">
     </form>
-
-    <form action="/upload_vibration" method="post" enctype="multipart/form-data">
-        <input type="file" name="vibration_files" multiple accept=".xlsx">
-        <button type="submit">Upload Vibration Data</button>
-    </form>
-
-    <h2>Predictions:</h2>
-    <p id="predictions"></p>
 </body>
 </html>
